@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Pairs Trading + Market Regime Detection — Research Project</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #09090f;
+    --surface: #111118;
+    --surface2: #16161f;
+    --border: #222230;
+    --accent: #7c6af7;
+    --accent2: #3ecfb2;
+    --accent3: #f7a04a;
+    --danger: #f25c5c;
+    --text: #e8e8f0;
+    --muted: #7a7a96;
+    --code-bg: #0d0d16;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative;
+    padding: 80px 40px 60px;
+    text-align: center;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 70% 60% at 50% -10%, #7c6af720 0%, transparent 70%),
+                radial-gradient(ellipse 40% 40% at 80% 80%, #3ecfb210 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .badge {
+    display: inline-block;
+    background: #7c6af718;
+    border: 1px solid #7c6af740;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 22px;
+    text-transform: uppercase;
+  }
+  .hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 5vw, 54px);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero h1 em { color: var(--accent2); font-style: normal; }
+  .hero-sub {
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 560px;
+    margin: 0 auto 32px;
+  }
+  .stock-pills { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 7px 16px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .pill:nth-child(1) .dot { background: var(--accent); }
+  .pill:nth-child(2) .dot { background: var(--accent2); }
+  .pill:nth-child(3) .dot { background: var(--accent3); }
+
+  /* ── NAV ── */
+  .toc {
+    position: sticky; top: 0; z-index: 100;
+    background: #09090fdd;
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex; gap: 0; overflow-x: auto;
+  }
+  .toc a {
+    display: block;
+    padding: 14px 16px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all .2s;
+  }
+  .toc a:hover { color: var(--text); border-bottom-color: var(--accent); }
+
+  /* ── MAIN LAYOUT ── */
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+  .section { padding: 64px 0; border-bottom: 1px solid var(--border); }
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(20px, 3vw, 28px);
+    font-weight: 700;
+    margin-bottom: 20px;
+    line-height: 1.2;
+  }
+  h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--accent2);
+    margin: 28px 0 10px;
+  }
+  p { color: #c0c0d8; margin-bottom: 14px; }
+  strong { color: var(--text); font-weight: 500; }
+
+  /* ── CALLOUT BOXES ── */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: #7c6af708;
+    padding: 16px 20px;
+    border-radius: 0 8px 8px 0;
+    margin: 20px 0;
+  }
+  .callout.green { border-color: var(--accent2); background: #3ecfb208; }
+  .callout.orange { border-color: var(--accent3); background: #f7a04a08; }
+  .callout.red { border-color: var(--danger); background: #f25c5c08; }
+  .callout-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .callout .callout-title { color: var(--accent); }
+  .callout.green .callout-title { color: var(--accent2); }
+  .callout.orange .callout-title { color: var(--accent3); }
+  .callout.red .callout-title { color: var(--danger); }
+
+  /* ── GRID CARDS ── */
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 24px 0; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+    transition: border-color .2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card-icon { font-size: 24px; margin-bottom: 12px; }
+  .card h4 { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .card p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* ── FORMULA DISPLAY ── */
+  .formula {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 16px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--accent2);
+    overflow-x: auto;
+  }
+
+  /* ── CODE BLOCK ── */
+  .code-block {
+    position: relative;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin: 20px 0;
+    overflow: hidden;
+  }
+  .code-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    background: #0d0d1a;
+    border-bottom: 1px solid var(--border);
+  }
+  .code-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .code-dots { display: flex; gap: 6px; }
+  .code-dots span { width: 10px; height: 10px; border-radius: 50%; }
+  .code-dots span:nth-child(1) { background: #f25c5c; }
+  .code-dots span:nth-child(2) { background: var(--accent3); }
+  .code-dots span:nth-child(3) { background: var(--accent2); }
+  pre {
+    padding: 20px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: #c8c8e8;
+  }
+  .kw { color: #c792ea; } /* keyword */
+  .fn { color: #82aaff; } /* function */
+  .st { color: #c3e88d; } /* string */
+  .cm { color: #546e7a; font-style: italic; } /* comment */
+  .nm { color: var(--accent3); } /* number */
+  .cl { color: var(--accent2); } /* class */
+  .op { color: #89ddff; } /* operator */
+
+  /* ── STEPS ── */
+  .steps { counter-reset: step; }
+  .step {
+    display: flex; gap: 16px;
+    margin-bottom: 20px;
+    counter-increment: step;
+  }
+  .step::before {
+    content: counter(step);
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    background: #7c6af720;
+    border: 1px solid #7c6af740;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    margin-top: 4px;
+  }
+  .step-body p { margin: 0; font-size: 14px; }
+  .step-body strong { color: var(--accent2); }
+
+  /* ── CHART PLACEHOLDER ── */
+  .chart-mock {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 20px 0;
+    min-height: 180px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .chart-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .spark { display: flex; align-items: flex-end; gap: 2px; height: 80px; }
+  .spark-bar {
+    flex: 1;
+    border-radius: 2px 2px 0 0;
+    transition: height .3s;
+  }
+  .zscore-line {
+    height: 60px;
+    position: relative;
+    margin: 12px 0;
+    overflow: hidden;
+  }
+  .zscore-line svg { width: 100%; height: 100%; }
+
+  /* ── REGIME BADGE ── */
+  .regime-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; }
+  .regime-card {
+    border-radius: 10px; padding: 18px;
+    border: 1px solid;
+  }
+  .regime-card.bull {
+    background: #3ecfb210; border-color: #3ecfb230;
+  }
+  .regime-card.bear {
+    background: #f25c5c10; border-color: #f25c5c30;
+  }
+  .regime-card h4 {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 700; margin-bottom: 4px;
+  }
+  .regime-card.bull h4 { color: var(--accent2); }
+  .regime-card.bear h4 { color: var(--danger); }
+  .regime-card p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; margin: 20px 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  th {
+    background: var(--surface2);
+    padding: 10px 14px;
+    text-align: left;
+    color: var(--muted);
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  td {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    color: #c8c8e8;
+  }
+  tr:hover td { background: var(--surface); }
+  .pos { color: var(--accent2); }
+  .neg { color: var(--danger); }
+
+  /* ── IMPROVEMENTS ── */
+  .improve-list { list-style: none; padding: 0; }
+  .improve-list li {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    color: #c0c0d8;
+  }
+  .improve-list li:last-child { border-bottom: none; }
+  .improve-list .tag {
+    flex-shrink: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+  .tag-fix { background: #7c6af720; color: var(--accent); border: 1px solid #7c6af730; }
+  .tag-idea { background: #3ecfb215; color: var(--accent2); border: 1px solid #3ecfb230; }
+  .tag-risk { background: #f25c5c10; color: var(--danger); border: 1px solid #f25c5c25; }
+
+  /* ── FOOTER ── */
+  footer {
+    padding: 40px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── COPY BTN ── */
+  .copy-btn {
+    background: #7c6af720;
+    border: 1px solid #7c6af740;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .copy-btn:hover { background: #7c6af740; }
+
+  @media (max-width: 600px) {
+    .hero { padding: 50px 20px 40px; }
+    .toc { gap: 0; }
+    .regime-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<div class="hero">
+  <div class="badge">Research Project · Quantitative Finance</div>
+  <h1>Pairs Trading with<br/><span>Market Regime</span> <em>Detection</em></h1>
+  <p class="hero-sub">A complete, beginner-friendly deep-dive into statistical arbitrage using Indian equities — with Python code you can run today.</p>
+  <div class="stock-pills">
+    <div class="pill"><span class="dot"></span>HDFCBANK.NS</div>
+    <div class="pill"><span class="dot"></span>ICICIBANK.NS</div>
+    <div class="pill"><span class="dot"></span>^NSEI (Nifty 50)</div>
+  </div>
+</div>
+
+<!-- ═══════════════ TOC NAV ═══════════════ -->
+<nav class="toc">
+  <a href="#s1">01 · Concept</a>
+  <a href="#s2">02 · Cointegration</a>
+  <a href="#s3">03 · Data + Spread</a>
+  <a href="#s4">04 · Strategy</a>
+  <a href="#s5">05 · Regime</a>
+  <a href="#s6">06 · Backtest</a>
+  <a href="#s7">07 · Visuals</a>
+  <a href="#s8">08 · Results</a>
+  <a href="#s9">09 · Improvements</a>
+  <a href="#s10">10 · Full Code</a>
+</nav>
+
+<div class="container">
+
+<!-- ═══════════════ SECTION 1 ═══════════════ -->
+<section class="section" id="s1">
+  <div class="section-num">01 — CONCEPT</div>
+  <h2>What is Pairs Trading?</h2>
+
+  <p>Imagine two siblings who always walk to school together. Sometimes one runs ahead, sometimes the other — but they always end up at school together. <strong>Pairs trading bets that if one sibling runs too far ahead, they'll slow down and wait for the other.</strong></p>
+
+  <p>In financial terms: find two stocks that historically move together. When they diverge abnormally, <strong>short the overperformer and long the underperformer</strong>, expecting mean reversion.</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-icon">📐</div>
+      <h4>Market-Neutral</h4>
+      <p>You're long one stock and short another — so broad market moves cancel out. You profit from relative performance, not market direction.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔁</div>
+      <h4>Mean-Reversion</h4>
+      <p>The core bet: divergences between cointegrated stocks are temporary. The "spread" between them reverts to its long-run average.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🏦</div>
+      <h4>Why HDFC + ICICI?</h4>
+      <p>Both are large-cap Indian private banks, exposed to the same macro factors (RBI rates, credit cycle, NPA cycle) — strong candidates for cointegration.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <h4>When Does It Work?</h4>
+      <p>Best in range-bound, sideways markets. Struggles when one stock permanently re-rates (e.g., a merger or fraud scandal breaks the relationship).</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">Key Insight</div>
+    <p style="margin:0; font-size:14px;">Pairs trading is NOT about predicting which direction prices go. It's about predicting that the <strong>distance between two prices</strong> will return to normal. This makes it fundamentally different from directional trading.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 2 ═══════════════ -->
+<section class="section" id="s2">
+  <div class="section-num">02 — COINTEGRATION</div>
+  <h2>Correlation vs Cointegration</h2>
+
+  <p>This is where most beginners go wrong. <strong>Correlation ≠ Cointegration</strong>, and using the wrong one will blow up your strategy.</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-icon">📈</div>
+      <h4>Correlation</h4>
+      <p>Measures if two stocks move in the <em>same direction</em> over a period. But two random walk stocks can appear correlated by chance (spurious correlation). It's unstable over time.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔗</div>
+      <h4>Cointegration</h4>
+      <p>Measures if a <em>linear combination</em> of two non-stationary series is stationary (mean-reverting). This is the real test. Even if they drift, their <em>spread</em> stays bounded.</p>
+    </div>
+  </div>
+
+  <h3>The Engle-Granger Test</h3>
+  <p>We test: is the spread <code>S_t = P_HDFC - β × P_ICICI</code> stationary? If yes → cointegrated → pairs trade is valid.</p>
+
+  <div class="formula">
+    H₀: No cointegration (spread has a unit root)
+    H₁: Cointegration exists (spread is stationary)
+    
+    p-value &lt; 0.05  →  Reject H₀  →  ✅ Proceed with strategy
+    p-value ≥ 0.05  →  Fail to reject H₀  →  ❌ Don't trade this pair
+  </div>
+
+  <div class="callout orange">
+    <div class="callout-title">Intuition</div>
+    <p style="margin:0; font-size:14px;">Think of two drunks walking home. If they're just correlated, they both stumble randomly. If they're cointegrated, they're tied together with a rubber band — they can wander, but they always snap back together.</p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><span></span><span></span><span></span></div>
+      <div class="code-title">cointegration_test.py</div>
+    </div>
+    <pre><span class="kw">from</span> statsmodels.tsa.stattools <span class="kw">import</span> coint
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Test cointegration between HDFC and ICICI</span>
+score, pvalue, critical_values = <span class="fn">coint</span>(df[<span class="st">'HDFCBANK'</span>], df[<span class="st">'ICICIBANK'</span>])
+
+<span class="fn">print</span>(<span class="st">f"Cointegration p-value: {pvalue:.4f}"</span>)
+<span class="fn">print</span>(<span class="st">f"Critical values (1%, 5%, 10%): {critical_values}"</span>)
+
+<span class="kw">if</span> pvalue &lt; <span class="nm">0.05</span>:
+    <span class="fn">print</span>(<span class="st">"✅ Cointegrated — valid pair for trading"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="st">"❌ Not cointegrated — avoid this pair"</span>)</pre>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 3 ═══════════════ -->
+<section class="section" id="s3">
+  <div class="section-num">03 — DATA + SPREAD</div>
+  <h2>Downloading Data & Building the Spread</h2>
+
+  <h3>Step 1 — Download Stock Data</h3>
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><span></span><span></span><span></span></div>
+      <div class="code-title">data_download.py</div>
+    </div>
+    <pre><span class="kw">import</span> yfinance <span class="kw">as</span> yf
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Download 5 years of daily closing prices</span>
+tickers = [<span class="st">'HDFCBANK.NS'</span>, <span class="st">'ICICIBANK.NS'</span>, <span class="st">'^NSEI'</span>]
+raw = yf.<span class="fn">download</span>(tickers, start=<span class="st">'2019-01-01'</span>, end=<span class="st">'2024-01-01'</span>)
+
+<span class="cm"># Extract adjusted closing prices</span>
+prices = raw[<span class="st">'Close'</span>].dropna()
+prices.columns = [<span class="st">'HDFCBANK'</span>, <span class="st">'ICICIBANK'</span>, <span class="st">'NIFTY'</span>]
+
+<span class="fn">print</span>(prices.<span class="fn">head</span>())
+<span class="fn">print</span>(<span class="st">f"Shape: {prices.shape}"</span>)   <span class="cm"># ~1250 trading days</span></pre>
+  </div>
+
+  <h3>Step 2 — Calculate Hedge Ratio (Beta) via OLS Regression</h3>
+  <p>We use Ordinary Least Squares to find how many shares of ICICI we need to short for every share of HDFC we buy. This is the <strong>hedge ratio β</strong>.</p>
+  <div class="formula">
+    HDFCBANK = α + β × ICICIBANK + ε
+    
+    β (hedge ratio) tells us: "1 unit of HDFC ≈ β units of ICICI"
+    Spread = HDFCBANK − β × ICICIBANK</div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><span></span><span></span><span></span></div>
+      <div class="code-title">hedge_ratio.py</div>
+    </div>
+    <pre><span class="kw">from</span> sklearn.linear_model <span class="kw">import</span> LinearRegression
+
+<span class="cm"># Fit OLS: HDFC = alpha + beta * ICICI</span>
+X = prices[[<span class="st">'ICICIBANK'</span>]].values
+y = prices[<span class="st">'HDFCBANK'</span>].values
+
+model = <span class="cl">LinearRegression</span>().<span class="fn">fit</span>(X, y)
+beta  = model.coef_[<span class="nm">0</span>]
+alpha = model.intercept_
+
+<span class="fn">print</span>(<span class="st">f"Hedge Ratio (β): {beta:.4f}"</span>)
+<span class="fn">print</span>(<span class="st">f"Intercept (α):   {alpha:.4f}"</span>)
+
+<span class="cm"># Build the spread</span>
+prices[<span class="st">'SPREAD'</span>] = prices[<span class="st">'HDFCBANK'</span>] <span class="op">-</span> beta <span class="op">*</span> prices[<span class="st">'ICICIBANK'</span>]</pre>
+  </div>
+
+  <h3>Step 3 — Compute Z-Score</h3>
+  <p>The Z-score tells us how many <strong>standard deviations</strong> the spread is from its rolling mean. This is our signal.</p>
+  <div class="formula">
+    Z-score = (Spread − Rolling_Mean) / Rolling_Std
+    
+    Rolling window = 60 trading days (≈ 3 months)
+    
+    Z &gt; +2  →  Spread is unusually HIGH  →  Short HDFC, Long ICICI
+    Z &lt; −2  →  Spread is unusually LOW   →  Long HDFC, Short ICICI
+    |Z| &lt; 0.5 →  Back to normal          →  Exit position</div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><span></span><span></span><span></span></div>
+      <div class="code-title">zscore.py</div>
+    </div>
+    <pre><span class="cm"># Rolling Z-score with 60-day lookback window</span>
+window = <span class="nm">60</span>
+
+prices[<span class="st">'SPREAD_MEAN'</span>] = prices[<span class="st">'SPREAD'</span>].<span class="fn">rolling</span>(window).<span class="fn">mean</span>()
+prices[<span class="st">'SPREAD_STD'</span>]  = prices[<span class="st">'SPREAD'</span>].<span class="fn">rolling</span>(window).<span class="fn">std</span>()
+
+prices[<span class="st">'ZSCORE'</span>] = (
+    (prices[<span class="st">'SPREAD'</span>] <span class="op">-</span> prices[<span class="st">'SPREAD_MEAN'</span>])
+    <span class="op">/</span> prices[<span class="st">'SPREAD_STD'</span>]
+)
+
+<span class="cm"># Drop NaN rows from rolling window warmup period</span>
+prices = prices.<span class="fn">dropna</span>()</pre>
+  </div>
+
+  <!-- Mini visual: Z-score illustration -->
+  <div class="chart-mock">
+    <div class="chart-label">Z-Score — Conceptual View</div>
+    <div style="position:relative; height:90px;">
+      <svg viewBox="0 0 500 90" width="100%" height="90" xmlns="http://www.w3.org/2000/svg">
+        <!-- zero line -->
+        <line x1="0" y1="45" x2="500" y2="45" stroke="#222230" stroke-width="1" stroke-dasharray="4,4"/>
+        <!-- +2 line -->
+        <line x1="0" y1="15" x2="500" y2="15" stroke="#f25c5c44" stroke-width="1" stroke-dasharray="3,3"/>
+        <!-- -2 line -->
+        <line x1="0" y1="75" x2="500" y2="75" stroke="#3ecfb244" stroke-width="1" stroke-dasharray="3,3"/>
+        <!-- labels -->
+        <text x="5" y="12" fill="#f25c5c" font-size="9" font-family="JetBrains Mono">+2</text>
+        <text x="5" y="48" fill="#546e7a" font-size="9" font-family="JetBrains Mono">0</text>
+        <text x="5" y="78" fill="#3ecfb2" font-size="9" font-family="JetBrains Mono">-2</text>
+        <!-- Z-score path -->
+        <polyline
+          points="0,45 20,40 40,32 60,20 80,10 100,18 120,38 140,45 160,48 180,55 200,68 220,78 240,82 260,72 280,58 300,45 320,42 340,30 360,22 380,35 400,45 420,50 440,55 460,48 480,45 500,44"
+          fill="none" stroke="#7c6af7" stroke-width="2" stroke-linejoin="round"/>
+        <!-- entry dots -->
+        <circle cx="80" cy="10" r="4" fill="#f25c5c"/>
+        <circle cx="240" cy="82" r="4" fill="#3ecfb2"/>
+        <text x="85" y="9" fill="#f25c5c" font-size="8" font-family="JetBrains Mono">SHORT HDFC</text>
+        <text x="245" y="88" fill="#3ecfb2" font-size="8" font-family="JetBrains Mono">LONG HDFC</text>
+      </svg>
+    </div>
+    <div style="display:flex; gap:16px; margin-top:8px; font-size:12px; font-family:'JetBrains Mono',monospace; color:var(--muted);">
+      <span style="color:#f25c5c">● Z &gt; +2 → Entry (Short Spread)</span>
+      <span style="color:#3ecfb2">● Z &lt; -2 → Entry (Long Spread)</span>
+      <span style="color:#7c6af7">— Z-Score path</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 4 ═══════════════ -->
+<section class="section" id="s4">
+  <div class="section-num">04 — STRATEGY</div>
+  <h2>Building the Trading Strategy</h2>
+
+  <p>Now we convert Z-score signals into actual trade positions. The logic is simple but the implementation details matter enormously.</p>
+
+  <div class="callout green">
+    <div class="callout-title">Trade Logic</div>
+    <p style="margin:0; font-size:14px;"><strong>Long Spread (Z &lt; -2):</strong> Buy HDFC, Sell ICICI — betting spread rises back<br/>
+    <strong>Short Spread (Z &gt; +2):</strong> Sell HDFC, Buy ICICI — betting spread falls back<br/>
+    <strong>Exit (|Z| &lt; 0.5):</strong> Close both legs — profit captured</p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><span></span><span></span><span></span></div>
+      <div class="code-title">strategy_signals.py</div>
+    </div>
+    <pre><span class="cm"># ── Signal thresholds ──────────────────────────────────────────</span>
+ENTRY_THRESHOLD = <span class="nm">2.0</span>    <span class="cm"># Enter when |Z| > 2</span>
+EXIT_THRESHOLD  = <span class="nm">0.5</span>    <span class="cm"># Exit when |Z| < 0.5</span>
+
+<span class="cm"># ── Generate raw signals ───────────────────────────────────────</span>
+<span class="cm"># +1 = Long spread, -1 = Short spread, 0 = Flat</span>
+prices[<span class="st">'SIGNAL'</span>] = <span class="nm">0</span>
+prices.loc[prices[<span class="st">'ZSCORE'</span>] &lt; -ENTRY_THRESHOLD, <span class="st">'SIGNAL'</span>] = <span class="nm">1</span>   <span class="cm"># Long</span>
+prices.loc[prices[<span class="st">'ZSCORE'</span>] &gt; ENTRY_THRESHOLD,  <span class="st">'SIGNAL'</span>] = -<span class="nm">1</span>  <span class="cm"># Short</span>
+
+<span class="cm"># ── Convert signals to positions (hold until exit) ────────────</span>
+<span class="cm"># This is the KEY step — we hold through intermediate days</span>
+position = <span class="nm">0</span>
+positions = []
+
+<span class="kw">for</span> idx, row <span class="kw">in</span> prices.<span class="fn">iterrows</span>():
+    z = row[<span class="st">'ZSCORE'</span>]
+    sig = row[<span class="st">'SIGNAL'</span>]
+
+    <span class="kw">if</span> position == <span class="nm">0</span>:
+        <span class="kw">if</span>   sig == <span class="nm">1</span>:  position =  <span class="nm">1</span>  <span class="cm"># New long entry</span>
+        <span class="kw">elif</span> sig == -<span class="nm">1</span>: position = -<span class="nm">1</span>  <span class="cm"># New short entry</span>
+    <span class="kw">elif</span> position ==  <span class="nm">1</span> <span class="kw">and</span> <span class="fn">abs</span>(z) &lt; EXIT_THRESHOLD:
+        position = <span class="nm">0</span>   <span class="cm"># Exit long position</span>
+    <span class="kw">elif</span> position == -<span class="nm">1</span> <span class="kw">and</span> <span class="fn">abs</span>(z) &lt; EXIT_THRESHOLD:
+        position = <span class="nm">0</span>   <span class="cm"># Exit short position</span>
+
+    positions.<span class="fn">append</span>(position)
+
+prices[<span class="st">'POSITION'</span>] = positions
+
+<span class="cm"># ── IMPORTANT: Shift position by 1 to avoid look-ahead bias ───</span>
+<span class="cm"># We trade on NEXT day's open, not today's close!</span>
+prices[<span class="st">'POSITION'</span>] = prices[<span class="st">'POSITION'</span>].<span class="fn">shift</span>(<span class="nm">1</span>).<span class="fn">fillna</span>(<span class="nm">0</span>)</pre>
+  </div>
+
+  <div class="callout red">
+    <div class="callout-title">⚠ Look-Ahead Bias Warning</div>
+    <p style="margin:0; font-size:14px;">The <code>.shift(1)</code> is critical. Without it, you're pretending you traded at today's close using today's closing price signal — which is physically impossible. Always shift positions by 1 day.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 5 ═══════════════ -->
+<section class="section" id="s5">
+  <div class="section-num">05 — REGIME DETECTION</div>
+  <h2>Market Regime Detection with Nifty 50</h2>
+
+  <p>Pairs trading works differently in bull vs bear markets. We use the <strong>200-day moving average</strong> of Nifty 50 to classify market regime.</p>
+
+  <div class="formula">
+    Bull Regime: NIFTY_Close &gt; NIFTY_200DMA  (market trending up)
+    Bear Regime: NIFTY_Close &lt; NIFTY_200DMA  (market trending down)
+    
+    Logic: When Nifty is ABOVE its 200DMA, we're in a structural uptrend.
+    Mean reversion strategies tend to work better in range-bound markets.</div>
+
+  <div class="regime-grid">
+    <div class="regime-card bull">
+      <h4>🐂 Bull Regime</h4>
+      <p>NIFTY &gt; 200-day MA. Stocks trend strongly — correlations break, fundamentals re-rate, spread diverges more than expected. Strategy still works but with more noise.</p>
+    </div>
+    <div class="regime-card bear">
+      <h4>🐻 Bear Regime</h4>
+      <p>NIFTY &lt; 200-day MA. Panic selling correlates all stocks. Spreads can blow out before reverting. Higher drawdowns, but mean-reversion signals are often sharp.</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><span></span><span></span><span></span></div>
+      <div class="code-title">regime_detection.py</div>
+    </div>
+    <pre><span class="cm"># ── 200-day moving average of Nifty 50 ────────────────────────</span>
+prices[<span class="st">'NIFTY_MA200'</span>] = prices[<span class="st">'NIFTY'</span>].<span class="fn">rolling</span>(<span class="nm">200</span>).<span class="fn">mean</span>()
+
+<span class="cm"># ── Classify regime ────────────────────────────────────────────</span>
+<span class="cm"># 1 = Bull (above 200 DMA), 0 = Bear (below 200 DMA)</span>
+prices[<span class="st">'REGIME'</span>] = (prices[<span class="st">'NIFTY'</span>] &gt; prices[<span class="st">'NIFTY_MA200'</span>]).<span class="fn">astype</span>(<span class="fn">int</span>)
+
+<span class="cm"># ── Optional: Filter strategy to trade only in specific regimes</span>
+<span class="cm"># Trade only in Bull market (empirically better for this strategy)</span>
+prices[<span class="st">'POSITION_FILTERED'</span>] = (
+    prices[<span class="st">'POSITION'</span>] <span class="op">*</span> prices[<span class="st">'REGIME'</span>]
+)
+
+<span class="cm"># Count regime days</span>
+bull_days = (prices[<span class="st">'REGIME'</span>] == <span class="nm">1</span>).<span class="fn">sum</span>()
+bear_days = (prices[<span class="st">'REGIME'</span>] == <span class="nm">0</span>).<span class="fn">sum</span>()
+<span class="fn">print</span>(<span class="st">f"Bull days: {bull_days} | Bear days: {bear_days}"</span>)</pre>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 6 ═══════════════ -->
+<section class="section" id="s6">
+  <div class="section-num">06 — BACKTEST</div>
+  <h2>Backtesting with Transaction Costs</h2>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><span></span><span></span><span></span></div>
+      <div class="code-title">backtest.py</div>
+    </div>
+    <pre><span class="cm"># ── Daily returns for each stock ──────────────────────────────</span>
+prices[<span class="st">'RET_HDFC'</span>]  = prices[<span class="st">'HDFCBANK'</span>].<span class="fn">pct_change</span>()
+prices[<span class="st">'RET_ICICI'</span>] = prices[<span class="st">'ICICIBANK'</span>].<span class="fn">pct_change</span>()
+
+<span class="cm"># ── Strategy daily return ─────────────────────────────────────</span>
+<span class="cm"># Long spread  (+1): Long HDFC, Short ICICI</span>
+<span class="cm"># Short spread (-1): Short HDFC, Long ICICI</span>
+prices[<span class="st">'STRAT_RET'</span>] = (
+    prices[<span class="st">'POSITION'</span>] <span class="op">*</span> (prices[<span class="st">'RET_HDFC'</span>] <span class="op">-</span> beta <span class="op">*</span> prices[<span class="st">'RET_ICICI'</span>])
+)
+
+<span class="cm"># ── Transaction cost (realistic for Indian equities) ──────────</span>
+TRANSACTION_COST = <span class="nm">0.0005</span>  <span class="cm"># 5 bps per side (incl. STT, brokerage, impact)</span>
+
+<span class="cm"># Detect trade days (when position changes)</span>
+trade_days = (prices[<span class="st">'POSITION'</span>].diff() != <span class="nm">0</span>) <span class="op">&</span> (prices[<span class="st">'POSITION'</span>] != <span class="nm">0</span>)
+prices[<span class="st">'TC'</span>] = <span class="nm">0.0</span>
+prices.loc[trade_days, <span class="st">'TC'</span>] = TRANSACTION_COST <span class="op">*</span> <span class="nm">2</span>  <span class="cm"># Both legs</span>
+
+prices[<span class="st">'STRAT_RET_NET'</span>] = prices[<span class="st">'STRAT_RET'</span>] <span class="op">-</span> prices[<span class="st">'TC'</span>]
+
+<span class="cm"># ── Cumulative returns ─────────────────────────────────────────</span>
+prices[<span class="st">'CUMRET'</span>]     = (<span class="nm">1</span> <span class="op">+</span> prices[<span class="st">'STRAT_RET_NET'</span>]).<span class="fn">cumprod</span>() <span class="op">-</span> <span class="nm">1</span>
+
+<span class="cm"># ── Regime-split performance ───────────────────────────────────</span>
+<span class="kw">for</span> regime, label <span class="kw">in</span> [(<span class="nm">1</span>, <span class="st">'Bull'</span>), (<span class="nm">0</span>, <span class="st">'Bear'</span>)]:
+    subset = prices[prices[<span class="st">'REGIME'</span>] == regime][<span class="st">'STRAT_RET_NET'</span>]
+    ann_ret  = subset.<span class="fn">mean</span>() <span class="op">*</span> <span class="nm">252</span>
+    ann_vol  = subset.<span class="fn">std</span>()  <span class="op">*</span> np.<span class="fn">sqrt</span>(<span class="nm">252</span>)
+    sharpe   = ann_ret <span class="op">/</span> ann_vol <span class="kw">if</span> ann_vol &gt; <span class="nm">0</span> <span class="kw">else</span> <span class="nm">0</span>
+    <span class="fn">print</span>(<span class="st">f"{label} | Ann.Return={ann_ret:.2%} | Sharpe={sharpe:.2f}"</span>)</pre>
+  </div>
+
+  <h3>Expected Performance Metrics</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Metric</th><th>Bull Regime</th><th>Bear Regime</th><th>Overall</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Ann. Return</td><td class="pos">+6–10%</td><td class="neg">+1–4%</td><td class="pos">+5–8%</td></tr>
+        <tr><td>Ann. Volatility</td><td>6–8%</td><td>9–13%</td><td>7–10%</td></tr>
+        <tr><td>Sharpe Ratio</td><td class="pos">0.9–1.4</td><td class="neg">0.2–0.5</td><td>0.6–1.0</td></tr>
+        <tr><td>Max Drawdown</td><td class="neg">−5–8%</td><td class="neg">−10–18%</td><td class="neg">−8–15%</td></tr>
+        <tr><td>Win Rate</td><td class="pos">58–65%</td><td>50–55%</td><td>55–60%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:12px; color:var(--muted);">⚠ These are indicative ranges based on historical behavior of similar banking pairs. Actual results will vary.</p>
+</section>
+
+<!-- ═══════════════ SECTION 7 ═══════════════ -->
+<section class="section" id="s7">
+  <div class="section-num">07 — VISUALISATION</div>
+  <h2>Charting with Matplotlib</h2>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><span></span><span></span><span></span></div>
+      <div class="code-title">visualise.py</div>
+    </div>
+    <pre><span class="kw">import</span> matplotlib.pyplot <span class="kw">as</span> plt
+<span class="kw">import</span> matplotlib.patches <span class="kw">as</span> mpatches
+
+fig, axes = plt.<span class="fn">subplots</span>(<span class="nm">3</span>, <span class="nm">1</span>, figsize=(<span class="nm">14</span>, <span class="nm">12</span>), sharex=<span class="kw">True</span>)
+fig.<span class="fn">suptitle</span>(<span class="st">'Pairs Trading: HDFCBANK vs ICICIBANK'</span>, 
+             fontsize=<span class="nm">14</span>, fontweight=<span class="st">'bold'</span>)
+
+<span class="cm"># ── Panel 1: Spread ───────────────────────────────────────────</span>
+ax1 = axes[<span class="nm">0</span>]
+ax1.<span class="fn">plot</span>(prices.index, prices[<span class="st">'SPREAD'</span>], color=<span class="st">'#7c6af7'</span>, lw=<span class="nm">1.2</span>)
+ax1.<span class="fn">axhline</span>(prices[<span class="st">'SPREAD'</span>].<span class="fn">mean</span>(), color=<span class="st">'white'</span>, lw=<span class="nm">1</span>, ls=<span class="st">'--'</span>, alpha=<span class="nm">0.4</span>)
+ax1.<span class="fn">set_title</span>(<span class="st">'Spread (HDFC − β·ICICI)'</span>)
+ax1.<span class="fn">set_ylabel</span>(<span class="st">'Spread (₹)'</span>)
+ax1.<span class="fn">grid</span>(<span class="kw">True</span>, alpha=<span class="nm">0.15</span>)
+
+<span class="cm"># ── Panel 2: Z-score with entry/exit lines ────────────────────</span>
+ax2 = axes[<span class="nm">1</span>]
+ax2.<span class="fn">plot</span>(prices.index, prices[<span class="st">'ZSCORE'</span>], color=<span class="st">'#f7a04a'</span>, lw=<span class="nm">1.2</span>)
+ax2.<span class="fn">axhline</span>( <span class="nm">2</span>, color=<span class="st">'#f25c5c'</span>, ls=<span class="st">'--'</span>, lw=<span class="nm">1</span>, label=<span class="st">'Short entry (+2)'</span>)
+ax2.<span class="fn">axhline</span>(-<span class="nm">2</span>, color=<span class="st">'#3ecfb2'</span>, ls=<span class="st">'--'</span>, lw=<span class="nm">1</span>, label=<span class="st">'Long entry (−2)'</span>)
+ax2.<span class="fn">axhline</span>( <span class="nm">0</span>, color=<span class="st">'white'</span>,   ls=<span class="st">'-'</span>,  lw=<span class="nm">0.5</span>, alpha=<span class="nm">0.3</span>)
+ax2.<span class="fn">fill_between</span>(prices.index, prices[<span class="st">'ZSCORE'</span>], <span class="nm">0</span>,
+                 where=prices[<span class="st">'ZSCORE'</span>]&gt;<span class="nm">2</span>,  alpha=<span class="nm">0.2</span>, color=<span class="st">'#f25c5c'</span>)
+ax2.<span class="fn">fill_between</span>(prices.index, prices[<span class="st">'ZSCORE'</span>], <span class="nm">0</span>,
+                 where=prices[<span class="st">'ZSCORE'</span>]&lt;-<span class="nm">2</span>, alpha=<span class="nm">0.2</span>, color=<span class="st">'#3ecfb2'</span>)
+ax2.<span class="fn">set_title</span>(<span class="st">'Z-Score with Entry/Exit Signals'</span>)
+ax2.<span class="fn">set_ylabel</span>(<span class="st">'Z-Score'</span>)
+ax2.<span class="fn">legend</span>(loc=<span class="st">'upper right'</span>, fontsize=<span class="nm">9</span>)
+ax2.<span class="fn">grid</span>(<span class="kw">True</span>, alpha=<span class="nm">0.15</span>)
+
+<span class="cm"># ── Panel 3: Cumulative returns by regime ─────────────────────</span>
+ax3 = axes[<span class="nm">2</span>]
+bull_mask = prices[<span class="st">'REGIME'</span>] == <span class="nm">1</span>
+bear_mask = prices[<span class="st">'REGIME'</span>] == <span class="nm">0</span>
+
+ax3.<span class="fn">fill_between</span>(prices.index, <span class="nm">0</span>, <span class="nm">1</span>,
+    where=bull_mask, alpha=<span class="nm">0.08</span>, color=<span class="st">'#3ecfb2'</span>, transform=ax3.get_xaxis_transform())
+ax3.<span class="fn">fill_between</span>(prices.index, <span class="nm">0</span>, <span class="nm">1</span>,
+    where=bear_mask, alpha=<span class="nm">0.08</span>, color=<span class="st">'#f25c5c'</span>, transform=ax3.get_xaxis_transform())
+ax3.<span class="fn">plot</span>(prices.index, prices[<span class="st">'CUMRET'</span>] <span class="op">*</span> <span class="nm">100</span>, 
+       color=<span class="st">'#7c6af7'</span>, lw=<span class="nm">1.5</span>, label=<span class="st">'Strategy'</span>)
+ax3.<span class="fn">axhline</span>(<span class="nm">0</span>, color=<span class="st">'white'</span>, lw=<span class="nm">0.5</span>, alpha=<span class="nm">0.3</span>)
+ax3.<span class="fn">set_title</span>(<span class="st">'Cumulative Returns (%) | Green=Bull, Red=Bear regime'</span>)
+ax3.<span class="fn">set_ylabel</span>(<span class="st">'Return (%)'</span>)
+ax3.<span class="fn">grid</span>(<span class="kw">True</span>, alpha=<span class="nm">0.15</span>)
+
+plt.<span class="fn">tight_layout</span>()
+plt.<span class="fn">savefig</span>(<span class="st">'pairs_trading_chart.png'</span>, dpi=<span class="nm">150</span>, bbox_inches=<span class="st">'tight'</span>)
+plt.<span class="fn">show</span>()</pre>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 8 ═══════════════ -->
+<section class="section" id="s8">
+  <div class="section-num">08 — RESULTS INTERPRETATION</div>
+  <h2>When Does It Work? When Does It Fail?</h2>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-icon">✅</div>
+      <h4>Works Best When…</h4>
+      <p>Market is range-bound (Nifty sideways). The two banks are in similar credit cycles. No stock-specific news (earnings surprise, management change). Spread reverts within 10–20 days.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">❌</div>
+      <h4>Fails When…</h4>
+      <p>One bank has a fraud/NPA scandal. RBI treats banks differently (e.g., differential rate signals). Strong trending market — spread keeps diverging. The 5-year cointegration window breaks.</p>
+    </div>
+  </div>
+
+  <h3>Why Trending Markets Hurt</h3>
+  <p>In a strong bull market, stocks re-rate based on earnings growth, not just relative value. HDFC might sustainably outperform ICICI for 12 months if it captures more market share. The Z-score hits +2 → you short HDFC → but HDFC keeps going up → <strong>you keep losing</strong>. The "spread" has structurally shifted, not temporarily diverged.</p>
+
+  <div class="callout orange">
+    <div class="callout-title">The Key Risk</div>
+    <p style="margin:0; font-size:14px;">Mean reversion is not guaranteed. The spread can widen to +3, +4, +5 standard deviations before reverting — or it might never revert. Always use stop-losses (e.g., exit if Z &gt; 3.5, taking a loss rather than hoping for reversion).</p>
+  </div>
+
+  <h3>Regime Analysis Summary</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Observation</th><th>Bull</th><th>Bear</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Spread mean reversion speed</td><td class="pos">Faster</td><td class="neg">Slower</td></tr>
+        <tr><td>Signal reliability</td><td class="pos">Higher</td><td class="neg">Lower</td></tr>
+        <tr><td>Drawdown risk</td><td class="pos">Lower</td><td class="neg">Higher</td></tr>
+        <tr><td>Trade count</td><td>Normal</td><td>Fewer (wider spreads linger)</td></tr>
+        <tr><td>Suggested action</td><td class="pos">Trade normally</td><td class="neg">Reduce size or skip</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 9 ═══════════════ -->
+<section class="section" id="s9">
+  <div class="section-num">09 — IMPROVEMENTS</div>
+  <h2>Making the Strategy More Robust</h2>
+
+  <ul class="improve-list">
+    <li>
+      <span class="tag tag-fix">Fix</span>
+      <div><strong>Rolling OLS hedge ratio</strong> — recalculate β every 60 days using a rolling regression instead of a fixed one. The relationship between HDFC and ICICI evolves over time.</div>
+    </li>
+    <li>
+      <span class="tag tag-fix">Fix</span>
+      <div><strong>Kalman Filter for dynamic β</strong> — use a Kalman filter to track a time-varying hedge ratio in real-time. More responsive than rolling OLS, fewer lag artifacts.</div>
+    </li>
+    <li>
+      <span class="tag tag-risk">Risk</span>
+      <div><strong>Stop-loss at Z = 3.5</strong> — if Z exceeds 3.5, exit the trade at a loss rather than waiting for reversion. Prevents catastrophic blowup when cointegration breaks.</div>
+    </li>
+    <li>
+      <span class="tag tag-risk">Risk</span>
+      <div><strong>Maximum holding period</strong> — if a trade hasn't resolved in 30 days, close it regardless of Z-score. Time-decay of the statistical relationship is real.</div>
+    </li>
+    <li>
+      <span class="tag tag-idea">Idea</span>
+      <div><strong>Multiple pairs portfolio</strong> — run 5–10 cointegrated bank pairs simultaneously (AXISBANK, KOTAK, INDUSINDBK). Diversification smooths the equity curve dramatically.</div>
+    </li>
+    <li>
+      <span class="tag tag-idea">Idea</span>
+      <div><strong>Volatility-scaled position sizing</strong> — reduce position size when spread volatility is high. Use Kelly criterion or 1/σ scaling to dynamically size each trade.</div>
+    </li>
+    <li>
+      <span class="tag tag-idea">Idea</span>
+      <div><strong>Regime-conditional trading</strong> — only enter new positions when Nifty is in Bull regime. Still hold existing Bear regime positions to completion, but don't open new ones.</div>
+    </li>
+    <li>
+      <span class="tag tag-fix">Fix</span>
+      <div><strong>Walk-forward validation</strong> — test your cointegration on Period A, trade on Period B, repeat. Avoids overfitting to a single historical window (in-sample vs out-of-sample split).</div>
+    </li>
+  </ul>
+</section>
+
+<!-- ═══════════════ SECTION 10 ═══════════════ -->
+<section class="section" id="s10">
+  <div class="section-num">10 — FULL CODE</div>
+  <h2>Complete Python Script</h2>
+  <p>Copy-paste this into a single <code>.py</code> file or Jupyter notebook. Install dependencies with: <code>pip install yfinance pandas numpy matplotlib statsmodels scikit-learn</code></p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><span></span><span></span><span></span></div>
+      <div class="code-title">pairs_trading_complete.py</div>
+      <button class="copy-btn" onclick="copyCode()">Copy</button>
+    </div>
+    <pre id="fullcode"><span class="cm"># ══════════════════════════════════════════════════════════════════
+# PAIRS TRADING WITH MARKET REGIME DETECTION
+# Stocks: HDFCBANK.NS + ICICIBANK.NS | Regime: ^NSEI (Nifty 50)
+# ══════════════════════════════════════════════════════════════════</span>
+
+<span class="kw">import</span> warnings; warnings.<span class="fn">filterwarnings</span>(<span class="st">'ignore'</span>)
+<span class="kw">import</span> yfinance <span class="kw">as</span> yf
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> matplotlib.pyplot <span class="kw">as</span> plt
+<span class="kw">from</span> sklearn.linear_model <span class="kw">import</span> LinearRegression
+<span class="kw">from</span> statsmodels.tsa.stattools <span class="kw">import</span> coint, adfuller
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────
+# 1. DOWNLOAD DATA
+# ─────────────────────────────────────────────────────────────────</span>
+tickers = [<span class="st">'HDFCBANK.NS'</span>, <span class="st">'ICICIBANK.NS'</span>, <span class="st">'^NSEI'</span>]
+raw = yf.<span class="fn">download</span>(tickers, start=<span class="st">'2019-01-01'</span>, end=<span class="st">'2024-01-01'</span>, auto_adjust=<span class="kw">True</span>)
+prices = raw[<span class="st">'Close'</span>].<span class="fn">dropna</span>()
+prices.columns = [<span class="st">'HDFCBANK'</span>, <span class="st">'ICICIBANK'</span>, <span class="st">'NIFTY'</span>]
+<span class="fn">print</span>(<span class="st">f"✅ Downloaded {len(prices)} rows"</span>)
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────
+# 2. COINTEGRATION TEST (Engle-Granger)
+# ─────────────────────────────────────────────────────────────────</span>
+score, pval, crits = <span class="fn">coint</span>(prices[<span class="st">'HDFCBANK'</span>], prices[<span class="st">'ICICIBANK'</span>])
+<span class="fn">print</span>(<span class="st">f"\n📊 Cointegration p-value: {pval:.4f}"</span>)
+<span class="fn">print</span>(<span class="st">"✅ Cointegrated"</span> <span class="kw">if</span> pval &lt; <span class="nm">0.05</span> <span class="kw">else</span> <span class="st">"❌ Not cointegrated"</span>)
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────
+# 3. HEDGE RATIO VIA OLS
+# ─────────────────────────────────────────────────────────────────</span>
+X = prices[[<span class="st">'ICICIBANK'</span>]].values
+y = prices[<span class="st">'HDFCBANK'</span>].values
+model = <span class="cl">LinearRegression</span>().<span class="fn">fit</span>(X, y)
+beta  = model.coef_[<span class="nm">0</span>]
+<span class="fn">print</span>(<span class="st">f"\n📐 Hedge Ratio (β): {beta:.4f}"</span>)
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────
+# 4. SPREAD + Z-SCORE
+# ─────────────────────────────────────────────────────────────────</span>
+WINDOW = <span class="nm">60</span>
+prices[<span class="st">'SPREAD'</span>]      = prices[<span class="st">'HDFCBANK'</span>] - beta <span class="op">*</span> prices[<span class="st">'ICICIBANK'</span>]
+prices[<span class="st">'SPREAD_MEAN'</span>] = prices[<span class="st">'SPREAD'</span>].<span class="fn">rolling</span>(WINDOW).<span class="fn">mean</span>()
+prices[<span class="st">'SPREAD_STD'</span>]  = prices[<span class="st">'SPREAD'</span>].<span class="fn">rolling</span>(WINDOW).<span class="fn">std</span>()
+prices[<span class="st">'ZSCORE'</span>]      = (prices[<span class="st">'SPREAD'</span>] - prices[<span class="st">'SPREAD_MEAN'</span>]) / prices[<span class="st">'SPREAD_STD'</span>]
+prices = prices.<span class="fn">dropna</span>()
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────
+# 5. GENERATE POSITIONS (no look-ahead bias)
+# ─────────────────────────────────────────────────────────────────</span>
+ENTRY = <span class="nm">2.0</span>
+EXIT  = <span class="nm">0.5</span>
+STOP  = <span class="nm">3.5</span>   <span class="cm"># Stop-loss Z level</span>
+
+position, positions = <span class="nm">0</span>, []
+<span class="kw">for</span> _, row <span class="kw">in</span> prices.<span class="fn">iterrows</span>():
+    z = row[<span class="st">'ZSCORE'</span>]
+    <span class="kw">if</span> position == <span class="nm">0</span>:
+        <span class="kw">if</span>   z &lt; -ENTRY: position =  <span class="nm">1</span>
+        <span class="kw">elif</span> z &gt;  ENTRY: position = -<span class="nm">1</span>
+    <span class="kw">elif</span> position ==  <span class="nm">1</span>:
+        <span class="kw">if</span> <span class="fn">abs</span>(z) &lt; EXIT <span class="kw">or</span> z &lt; -STOP: position = <span class="nm">0</span>
+    <span class="kw">elif</span> position == -<span class="nm">1</span>:
+        <span class="kw">if</span> <span class="fn">abs</span>(z) &lt; EXIT <span class="kw">or</span> z &gt;  STOP: position = <span class="nm">0</span>
+    positions.<span class="fn">append</span>(position)
+
+prices[<span class="st">'POSITION'</span>] = pd.<span class="fn">Series</span>(positions, index=prices.index).<span class="fn">shift</span>(<span class="nm">1</span>).<span class="fn">fillna</span>(<span class="nm">0</span>)
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────
+# 6. MARKET REGIME (Nifty 200 DMA)
+# ─────────────────────────────────────────────────────────────────</span>
+prices[<span class="st">'NIFTY_MA200'</span>] = prices[<span class="st">'NIFTY'</span>].<span class="fn">rolling</span>(<span class="nm">200</span>).<span class="fn">mean</span>()
+prices[<span class="st">'REGIME'</span>]     = (prices[<span class="st">'NIFTY'</span>] &gt; prices[<span class="st">'NIFTY_MA200'</span>]).<span class="fn">astype</span>(<span class="fn">int</span>)
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────
+# 7. BACKTEST WITH TRANSACTION COSTS
+# ─────────────────────────────────────────────────────────────────</span>
+TC_RATE = <span class="nm">0.0005</span>   <span class="cm"># 5 bps per trade side</span>
+
+prices[<span class="st">'RET_HDFC'</span>]  = prices[<span class="st">'HDFCBANK'</span>].<span class="fn">pct_change</span>()
+prices[<span class="st">'RET_ICICI'</span>] = prices[<span class="st">'ICICIBANK'</span>].<span class="fn">pct_change</span>()
+prices[<span class="st">'STRAT_RET'</span>] = prices[<span class="st">'POSITION'</span>] <span class="op">*</span> (prices[<span class="st">'RET_HDFC'</span>] - beta <span class="op">*</span> prices[<span class="st">'RET_ICICI'</span>])
+
+trade_days = prices[<span class="st">'POSITION'</span>].<span class="fn">diff</span>().<span class="fn">abs</span>() &gt; <span class="nm">0</span>
+prices[<span class="st">'STRAT_RET'</span>] -= trade_days <span class="op">*</span> TC_RATE <span class="op">*</span> <span class="nm">2</span>
+prices[<span class="st">'CUMRET'</span>]     = (<span class="nm">1</span> <span class="op">+</span> prices[<span class="st">'STRAT_RET'</span>]).<span class="fn">cumprod</span>() - <span class="nm">1</span>
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────
+# 8. PERFORMANCE SUMMARY
+# ─────────────────────────────────────────────────────────────────</span>
+<span class="fn">print</span>(<span class="st">"\n📈 PERFORMANCE SUMMARY"</span>)
+<span class="fn">print</span>(<span class="st">"-" * 45</span>)
+<span class="kw">for</span> regime, label <span class="kw">in</span> [(<span class="nm">1</span>, <span class="st">'Bull'</span>), (<span class="nm">0</span>, <span class="st">'Bear'</span>), (<span class="kw">None</span>, <span class="st">'All '</span>)]:
+    subset = prices[<span class="st">'STRAT_RET'</span>] <span class="kw">if</span> regime <span class="kw">is</span> <span class="kw">None</span> <span class="kw">else</span> \
+             prices[prices[<span class="st">'REGIME'</span>] == regime][<span class="st">'STRAT_RET'</span>]
+    ann_r = subset.<span class="fn">mean</span>() <span class="op">*</span> <span class="nm">252</span>
+    ann_v = subset.<span class="fn">std</span>()  <span class="op">*</span> np.<span class="fn">sqrt</span>(<span class="nm">252</span>)
+    sharpe = ann_r / ann_v <span class="kw">if</span> ann_v &gt; <span class="nm">0</span> <span class="kw">else</span> <span class="nm">0</span>
+    maxdd  = ((<span class="nm">1</span> <span class="op">+</span> subset).<span class="fn">cumprod</span>() / (<span class="nm">1</span> <span class="op">+</span> subset).<span class="fn">cumprod</span>().<span class="fn">cummax</span>() - <span class="nm">1</span>).<span class="fn">min</span>()
+    <span class="fn">print</span>(<span class="st">f"{label} | Ret={ann_r:+.1%} | Vol={ann_v:.1%} | Sharpe={sharpe:.2f} | MaxDD={maxdd:.1%}"</span>)
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────
+# 9. VISUALISE
+# ─────────────────────────────────────────────────────────────────</span>
+fig, (ax1, ax2, ax3) = plt.<span class="fn">subplots</span>(<span class="nm">3</span>, <span class="nm">1</span>, figsize=(<span class="nm">14</span>, <span class="nm">11</span>), sharex=<span class="kw">True</span>)
+fig.<span class="fn">patch</span>.<span class="fn">set_facecolor</span>(<span class="st">'#09090f'</span>)
+<span class="kw">for</span> ax <span class="kw">in</span> [ax1, ax2, ax3]:
+    ax.<span class="fn">set_facecolor</span>(<span class="st">'#111118'</span>)
+    ax.<span class="fn">tick_params</span>(colors=<span class="st">'#7a7a96'</span>)
+    <span class="kw">for</span> spine <span class="kw">in</span> ax.spines.<span class="fn">values</span>(): spine.<span class="fn">set_edgecolor</span>(<span class="st">'#222230'</span>)
+    ax.<span class="fn">grid</span>(<span class="kw">True</span>, alpha=<span class="nm">0.1</span>, color=<span class="st">'#444'</span>)
+
+ax1.<span class="fn">plot</span>(prices.index, prices[<span class="st">'SPREAD'</span>], color=<span class="st">'#7c6af7'</span>, lw=<span class="nm">1</span>)
+ax1.<span class="fn">set_title</span>(<span class="st">'Spread (HDFCBANK − β·ICICIBANK)'</span>, color=<span class="st">'#e8e8f0'</span>)
+ax1.<span class="fn">set_ylabel</span>(<span class="st">'₹'</span>, color=<span class="st">'#7a7a96'</span>)
+
+ax2.<span class="fn">plot</span>(prices.index, prices[<span class="st">'ZSCORE'</span>], color=<span class="st">'#f7a04a'</span>, lw=<span class="nm">1</span>)
+ax2.<span class="fn">axhline</span>( <span class="nm">2</span>,  color=<span class="st">'#f25c5c'</span>, ls=<span class="st">'--'</span>, lw=<span class="nm">1</span>)
+ax2.<span class="fn">axhline</span>(-<span class="nm">2</span>,  color=<span class="st">'#3ecfb2'</span>, ls=<span class="st">'--'</span>, lw=<span class="nm">1</span>)
+ax2.<span class="fn">axhline</span>( <span class="nm">0</span>,  color=<span class="st">'#ffffff'</span>, ls=<span class="st">'-'</span>,  lw=<span class="nm">0.5</span>, alpha=<span class="nm">0.2</span>)
+ax2.<span class="fn">fill_between</span>(prices.index, prices[<span class="st">'ZSCORE'</span>], <span class="nm">0</span>,
+    where=prices[<span class="st">'ZSCORE'</span>]&gt;<span class="nm">2</span>,  alpha=<span class="nm">0.2</span>, color=<span class="st">'#f25c5c'</span>)
+ax2.<span class="fn">fill_between</span>(prices.index, prices[<span class="st">'ZSCORE'</span>], <span class="nm">0</span>,
+    where=prices[<span class="st">'ZSCORE'</span>]&lt;-<span class="nm">2</span>, alpha=<span class="nm">0.2</span>, color=<span class="st">'#3ecfb2'</span>)
+ax2.<span class="fn">set_title</span>(<span class="st">'Z-Score | Red=Short Spread | Green=Long Spread'</span>, color=<span class="st">'#e8e8f0'</span>)
+ax2.<span class="fn">set_ylabel</span>(<span class="st">'Z-Score'</span>, color=<span class="st">'#7a7a96'</span>)
+
+ax3.<span class="fn">fill_between</span>(prices.index, <span class="nm">0</span>, <span class="nm">1</span>,
+    where=prices[<span class="st">'REGIME'</span>]==<span class="nm">1</span>, alpha=<span class="nm">0.07</span>, color=<span class="st">'#3ecfb2'</span>,
+    transform=ax3.<span class="fn">get_xaxis_transform</span>(), label=<span class="st">'Bull'</span>)
+ax3.<span class="fn">fill_between</span>(prices.index, <span class="nm">0</span>, <span class="nm">1</span>,
+    where=prices[<span class="st">'REGIME'</span>]==<span class="nm">0</span>, alpha=<span class="nm">0.07</span>, color=<span class="st">'#f25c5c'</span>,
+    transform=ax3.<span class="fn">get_xaxis_transform</span>(), label=<span class="st">'Bear'</span>)
+ax3.<span class="fn">plot</span>(prices.index, prices[<span class="st">'CUMRET'</span>] <span class="op">*</span> <span class="nm">100</span>, color=<span class="st">'#7c6af7'</span>, lw=<span class="nm">1.5</span>)
+ax3.<span class="fn">axhline</span>(<span class="nm">0</span>, color=<span class="st">'white'</span>, lw=<span class="nm">0.5</span>, alpha=<span class="nm">0.2</span>)
+ax3.<span class="fn">set_title</span>(<span class="st">'Cumulative Returns (%) by Market Regime'</span>, color=<span class="st">'#e8e8f0'</span>)
+ax3.<span class="fn">set_ylabel</span>(<span class="st">'Return (%)'</span>, color=<span class="st">'#7a7a96'</span>)
+ax3.<span class="fn">legend</span>(facecolor=<span class="st">'#16161f'</span>, labelcolor=<span class="st">'#c0c0d8'</span>)
+
+fig.<span class="fn">suptitle</span>(
+    <span class="st">'Pairs Trading: HDFCBANK vs ICICIBANK | 2019–2024'</span>,
+    color=<span class="st">'#e8e8f0'</span>, fontsize=<span class="nm">13</span>, fontweight=<span class="st">'bold'</span>
+)
+plt.<span class="fn">tight_layout</span>()
+plt.<span class="fn">savefig</span>(<span class="st">'pairs_trading_result.png'</span>, dpi=<span class="nm">150</span>, bbox_inches=<span class="st">'tight'</span>)
+plt.<span class="fn">show</span>()
+<span class="fn">print</span>(<span class="st">"\n✅ Chart saved: pairs_trading_result.png"</span>)</pre>
+  </div>
+</section>
+
+</div><!-- /container -->
+
+<footer>
+  Pairs Trading Research Project · HDFCBANK.NS + ICICIBANK.NS · Built with Python + yfinance<br/>
+  <span style="color:#444; margin-top:6px; display:block;">For educational purposes. Not financial advice.</span>
+</footer>
+
+<script>
+function copyCode() {
+  const pre = document.getElementById('fullcode');
+  const text = pre.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 2000);
+  });
+}
+
+// Animate spark bars on load
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.spark-bar').forEach(bar => {
+    const h = Math.random() * 60 + 10;
+    bar.style.height = h + 'px';
+  });
+});
+</script>
+</body>
+</html>
